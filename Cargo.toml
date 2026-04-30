@@ -1,0 +1,12 @@
+[package]
+name = "enue-sat"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "enue_sat"
+path = "src/lib.rs"
+
+[[bin]]
+name = "enue-sat"
+path = "src/main.rs"
