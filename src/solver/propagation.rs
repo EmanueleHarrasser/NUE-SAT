@@ -1,5 +1,6 @@
 use crate::cnf::{Cnf, Lit};
 use crate::solver::assignment::Assignment;
+use crate::solver::stats::Stats;
 
 enum ClauseStatus {
     Satisfied,
@@ -8,16 +9,20 @@ enum ClauseStatus {
     Conflict,
 }
 
-pub fn unit_propagate(cnf: &Cnf, assignment: &mut Assignment) -> bool {
+pub fn unit_propagate(cnf: &Cnf, assignment: &mut Assignment, stats: &mut Stats) -> bool {
     loop {
         let mut changed = false;
         for clause in &cnf.clauses {
             match clause_status(clause, assignment) {
                 ClauseStatus::Satisfied | ClauseStatus::Unresolved => {}
-                ClauseStatus::Conflict => return false,
+                ClauseStatus::Conflict => {
+                    stats.record_conflict_clause(clause);
+                    return false;
+                }
                 ClauseStatus::Unit(lit) => {
                     let value = !lit.neg;
                     if !assignment.assign(lit.var, value) {
+                        stats.record_conflict_clause(clause);
                         return false;
                     }
                     changed = true;

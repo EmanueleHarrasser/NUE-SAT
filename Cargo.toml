@@ -6,7 +6,12 @@ edition = "2021"
 [lib]
 name = "enue_sat"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "enue-sat"
 path = "src/main.rs"
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+rand = "0.8"
