@@ -8,7 +8,7 @@ use crate::solver::logging::{DecisionGroup, DecisionSample};
 use crate::solver::nnue::NnueModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
-use crate::solver::{branching, HeuristicKind, SolveConfig};
+use crate::solver::{branching, HeuristicKind, SolveConfig, SolveStats};
 
 pub(crate) struct SolveState {
     pub stats: Stats,
@@ -19,6 +19,8 @@ pub(crate) struct SolveState {
     pub decision_id: u32,
     pub heuristic: HeuristicKind,
     pub nnue: Option<NnueModel>,
+    pub decisions: u64,
+    pub backtracks: u64,
 }
 
 impl SolveState {
@@ -45,6 +47,8 @@ impl SolveState {
             decision_id: 0,
             heuristic: config.heuristic,
             nnue,
+            decisions: 0,
+            backtracks: 0,
         }
     }
 
@@ -55,6 +59,14 @@ impl SolveState {
             _ => {
                 self.best_unsat = Some(self.log_stack.clone());
             }
+        }
+    }
+
+    pub(crate) fn metrics(&self) -> SolveStats {
+        SolveStats {
+            decisions: self.decisions,
+            backtracks: self.backtracks,
+            conflicts: self.stats.conflict_count(),
         }
     }
 }
@@ -84,6 +96,8 @@ pub fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Optio
         Some(decision) => decision,
         None => return None,
     };
+
+    state.decisions += 1;
 
     let decision_id = state.decision_id;
     state.decision_id += 1;
@@ -119,6 +133,7 @@ pub fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Optio
         return Some(model);
     }
 
+    state.backtracks += 1;
     state.stats.inc_flip(decision.var);
     if let Some(last) = state.log_stack.last_mut() {
         if let Some(first) = last.samples.first_mut() {

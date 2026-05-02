@@ -4,7 +4,7 @@ use crate::cnf::{Lit, Var};
 pub struct Stats {
     conflict_heat: Vec<u32>,
     recent_flips: Vec<u32>,
-    conflict_count: u32,
+    conflict_count: u64,
 }
 
 impl Stats {
@@ -41,5 +41,9 @@ impl Stats {
                 *heat /= 2;
             }
         }
+    }
+
+    pub fn conflict_count(&self) -> u64 {
+        self.conflict_count
     }
 }

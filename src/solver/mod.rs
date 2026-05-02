@@ -59,14 +59,33 @@ impl Default for SolveConfig {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct SolveStats {
+    pub decisions: u64,
+    pub backtracks: u64,
+    pub conflicts: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct SolveOutcome {
+    pub model: Option<Model>,
+    pub stats: SolveStats,
+}
+
 pub fn solve(cnf: &Cnf) -> Option<Model> {
     solve_with_config(cnf, SolveConfig::default())
 }
 
 pub fn solve_with_config(cnf: &Cnf, config: SolveConfig) -> Option<Model> {
+    solve_with_stats(cnf, config).model
+}
+
+pub fn solve_with_stats(cnf: &Cnf, config: SolveConfig) -> SolveOutcome {
     let assignment = Assignment::new(cnf.num_vars);
     let mut state = dpll::SolveState::new(cnf.num_vars, config);
-    dpll::solve(cnf, assignment, &mut state)
+    let model = dpll::solve(cnf, assignment, &mut state);
+    let stats = state.metrics();
+    SolveOutcome { model, stats }
 }
 
 pub fn solve_with_log(
@@ -74,6 +93,14 @@ pub fn solve_with_log(
     config: SolveConfig,
     log_path: &Path,
 ) -> std::io::Result<Option<Model>> {
+    Ok(solve_with_log_and_stats(cnf, config, log_path)?.model)
+}
+
+pub fn solve_with_log_and_stats(
+    cnf: &Cnf,
+    config: SolveConfig,
+    log_path: &Path,
+) -> std::io::Result<SolveOutcome> {
     let assignment = Assignment::new(cnf.num_vars);
     let mut state = dpll::SolveState::new(cnf.num_vars, config);
     let model = dpll::solve(cnf, assignment, &mut state);
@@ -83,5 +110,6 @@ pub fn solve_with_log(
         state.best_unsat.as_deref().unwrap_or(&[])
     };
     logging::write_csv(log_path, groups)?;
-    Ok(model)
+    let stats = state.metrics();
+    Ok(SolveOutcome { model, stats })
 }
