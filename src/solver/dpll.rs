@@ -4,17 +4,21 @@ use rand::SeedableRng;
 use crate::cnf::Cnf;
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
-use crate::solver::logging::DecisionRecord;
+use crate::solver::logging::{DecisionGroup, DecisionSample};
+use crate::solver::nnue::NnueModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
-use crate::solver::{branching, SolveConfig};
+use crate::solver::{branching, HeuristicKind, SolveConfig};
 
 pub(crate) struct SolveState {
     pub stats: Stats,
-    pub log_stack: Vec<DecisionRecord>,
-    pub best_unsat: Option<Vec<DecisionRecord>>,
+    pub log_stack: Vec<DecisionGroup>,
+    pub best_unsat: Option<Vec<DecisionGroup>>,
     pub rng: StdRng,
     pub epsilon: f64,
+    pub decision_id: u32,
+    pub heuristic: HeuristicKind,
+    pub nnue: Option<NnueModel>,
 }
 
 impl SolveState {
@@ -24,12 +28,23 @@ impl SolveState {
             None => StdRng::from_entropy(),
         };
 
+        let nnue = match config.heuristic {
+            HeuristicKind::Nnue => {
+                let path = config.nnue_path.expect("nnue_path required for NNUE");
+                Some(NnueModel::from_bin(&path).expect("failed to load nnue weights"))
+            }
+            HeuristicKind::JwEpsilon => None,
+        };
+
         SolveState {
             stats: Stats::new(num_vars),
             log_stack: Vec::new(),
             best_unsat: None,
             rng,
             epsilon: config.epsilon,
+            decision_id: 0,
+            heuristic: config.heuristic,
+            nnue,
         }
     }
 
@@ -55,17 +70,47 @@ pub fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Optio
         return Some(assignment);
     }
 
-    let decision = match branching::choose_decision(cnf, &assignment, &mut state.rng, state.epsilon) {
+    let trail_depth = state.log_stack.len() as u32;
+    let decision = match branching::choose_decision(
+        cnf,
+        &assignment,
+        &state.stats,
+        trail_depth,
+        &mut state.rng,
+        state.epsilon,
+        state.heuristic,
+        state.nnue.as_ref(),
+    ) {
         Some(decision) => decision,
         None => return None,
     };
 
-    let trail_depth = state.log_stack.len() as u32;
+    let decision_id = state.decision_id;
+    state.decision_id += 1;
+
+    let mut samples: Vec<DecisionSample> = Vec::with_capacity(1 + decision.runner_ups.len());
     let feats = features::compute_features(cnf, &assignment, &state.stats, decision.var, trail_depth);
-    state.log_stack.push(DecisionRecord {
+    samples.push(DecisionSample {
+        label: 1,
         var: decision.var,
         value: decision.value,
         features: feats,
+    });
+
+    for runner in &decision.runner_ups {
+        let runner_feats =
+            features::compute_features(cnf, &assignment, &state.stats, runner.var, trail_depth);
+        samples.push(DecisionSample {
+            label: 0,
+            var: runner.var,
+            value: runner.value,
+            features: runner_feats,
+        });
+    }
+
+    state.log_stack.push(DecisionGroup {
+        decision_id,
+        samples,
     });
 
     let mut try_first = assignment.clone();
@@ -76,7 +121,9 @@ pub fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Optio
 
     state.stats.inc_flip(decision.var);
     if let Some(last) = state.log_stack.last_mut() {
-        last.value = !decision.value;
+        if let Some(first) = last.samples.first_mut() {
+            first.value = !decision.value;
+        }
     }
 
     let mut try_second = assignment;
