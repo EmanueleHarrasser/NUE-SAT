@@ -4,6 +4,7 @@ pub mod dpll;
 pub mod features;
 pub mod logging;
 pub mod nnue;
+pub mod perturb;
 pub mod propagation;
 pub mod stats;
 
@@ -112,4 +113,13 @@ pub fn solve_with_log_and_stats(
     logging::write_csv(log_path, groups)?;
     let stats = state.metrics();
     Ok(SolveOutcome { model, stats })
+}
+
+pub fn generate_perturbation_log(
+    cnf: &Cnf,
+    log_path: &Path,
+    seed: Option<u64>,
+    bias_exp: f64,
+) -> std::io::Result<perturb::PerturbationOutcome> {
+    perturb::generate_perturbation_log(cnf, log_path, seed, bias_exp)
 }

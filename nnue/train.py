@@ -93,7 +93,7 @@ def eval_epoch_loss(model, csv_paths, device, margin, batch_pairs):
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    data_dir = root / "output/sr_2"
+    data_dir = root / "output/sr_1"
     model_dir = root / "models"
     model_dir.mkdir(parents=True, exist_ok=True)
 

@@ -21,6 +21,54 @@ pub struct Decision {
     pub runner_ups: Vec<RunnerUp>,
 }
 
+pub(crate) fn decision_forced(
+    cnf: &Cnf,
+    assignment: &Assignment,
+    pos_scores: &[f64],
+    neg_scores: &[f64],
+    var: Var,
+    value: bool,
+) -> Decision {
+    let mut unassigned: Vec<Var> = Vec::new();
+    for i in 1..=cnf.num_vars {
+        let candidate = Var::new(i);
+        if !assignment.is_assigned(candidate) {
+            unassigned.push(candidate);
+        }
+    }
+    assert!(unassigned.iter().any(|&v| v == var));
+
+    let mut scored: Vec<(f64, Var)> = unassigned
+        .iter()
+        .map(|&candidate| {
+            let score = pos_scores[candidate.index()] + neg_scores[candidate.index()];
+            (score, candidate)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+    let mut runner_ups: Vec<RunnerUp> = Vec::new();
+    for (_, candidate) in scored {
+        if candidate == var {
+            continue;
+        }
+        let candidate_value = pos_scores[candidate.index()] >= neg_scores[candidate.index()];
+        runner_ups.push(RunnerUp {
+            var: candidate,
+            value: candidate_value,
+        });
+        if runner_ups.len() == RUNNER_UPS {
+            break;
+        }
+    }
+
+    Decision {
+        var,
+        value,
+        runner_ups,
+    }
+}
+
 pub fn choose_decision(
     cnf: &Cnf,
     assignment: &Assignment,
@@ -132,7 +180,7 @@ pub fn choose_decision(
     }
 }
 
-fn jw_scores(cnf: &Cnf, assignment: &Assignment) -> (Vec<f64>, Vec<f64>) {
+pub(crate) fn jw_scores(cnf: &Cnf, assignment: &Assignment) -> (Vec<f64>, Vec<f64>) {
     let mut pos_scores = vec![0.0f64; cnf.num_vars as usize];
     let mut neg_scores = vec![0.0f64; cnf.num_vars as usize];
 
