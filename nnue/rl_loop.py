@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import random
 import shutil
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import sys
 from pathlib import Path as _Path
@@ -130,6 +132,30 @@ def generate_cnf_dataset(
         bar.close()
 
 
+def process_single_cnf(
+    cnf_path: Path, 
+    cnf_root: Path, 
+    buffer_dir: Path, 
+    nnue_bin: Path, 
+    seed: int, 
+    bias_exp: float, 
+    top_k: int
+) -> bool:
+    """Worker function executed by ProcessPoolExecutor to process a single CNF."""
+    out_path = iter_output_path(cnf_root, buffer_dir, cnf_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_nnue(
+        str(cnf_path),
+        str(out_path),
+        str(nnue_bin),
+        seed=seed,
+        bias_exp=bias_exp,
+        top_k=top_k,
+    )
+    return ok
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iterations", type=int, default=5)
@@ -149,17 +175,17 @@ def main() -> int:
     init_path = model_dir / "nnue.pth"
     best_overall = None
 
-    ratio_min = 2.5
-    ratio_max = 4.0
+    ratio_min = 1.5
+    ratio_max = 3.0
     k_min = 2
     k_max = 4
     k_alpha = 1.5
     max_attempts = 50000
     vars_min = 20
-    vars_max = 200
+    vars_max = 100
     bias_exp = 2.0
     top_k = 5
-    epochs = 10
+    epochs = 1
     batch_pairs = 256
     margin = 1.0
     lr = 1e-3
@@ -186,19 +212,25 @@ def main() -> int:
         reset_dir(buffer_dir)
         cnf_files = collect_cnf_files(cnf_root)
         logged = 0
-        for cnf_path in tqdm(cnf_files, desc=f"Iter {iteration} logs", unit="cnf"):
-            out_path = iter_output_path(cnf_root, buffer_dir, cnf_path)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_nnue(
-                str(cnf_path),
-                str(out_path),
-                str(nnue_bin),
-                seed=args.seed,
-                bias_exp=bias_exp,
-                top_k=top_k,
-            )
-            if ok:
-                logged += 1
+        
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    process_single_cnf,
+                    cnf_path,
+                    cnf_root,
+                    buffer_dir,
+                    nnue_bin,
+                    args.seed,
+                    bias_exp,
+                    top_k
+                )
+                for cnf_path in cnf_files
+            ]
+            
+            for future in tqdm(as_completed(futures), total=len(cnf_files), desc=f"Iter {iteration} logs", unit="cnf"):
+                if future.result():
+                    logged += 1
 
         print(f"Iter {iteration}: logged {logged} / {len(cnf_files)}")
 
