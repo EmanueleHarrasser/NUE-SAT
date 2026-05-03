@@ -123,3 +123,14 @@ pub fn generate_perturbation_log(
 ) -> std::io::Result<perturb::PerturbationOutcome> {
     perturb::generate_perturbation_log(cnf, log_path, seed, bias_exp)
 }
+
+pub fn generate_nnue_perturbation_log(
+    cnf: &Cnf,
+    log_path: &Path,
+    seed: Option<u64>,
+    bias_exp: f64,
+    nnue_path: &Path,
+    top_k: usize,
+) -> std::io::Result<perturb::PerturbationOutcome> {
+    perturb::generate_nnue_perturbation_log(cnf, log_path, seed, bias_exp, nnue_path, top_k)
+}

@@ -164,6 +164,36 @@ fn perturb_dimacs(
     ))
 }
 
+#[pyfunction]
+fn perturb_dimacs_nnue(
+    path: &str,
+    log_path: &str,
+    nnue_path: &str,
+    seed: Option<u64>,
+    bias_exp: Option<f64>,
+    top_k: Option<usize>,
+) -> PyResult<(bool, u64, u64)> {
+    let input = fs::read_to_string(path).map_err(PyIOError::new_err)?;
+    let cnf = parser::dimacs::parse_dimacs(&input)
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
+
+    let outcome = solver::generate_nnue_perturbation_log(
+        &cnf,
+        Path::new(log_path),
+        seed,
+        bias_exp.unwrap_or(2.0),
+        Path::new(nnue_path),
+        top_k.unwrap_or(5),
+    )
+    .map_err(PyIOError::new_err)?;
+
+    Ok((
+        outcome.logged,
+        outcome.base_decisions,
+        outcome.new_decisions,
+    ))
+}
+
 #[pymodule]
 fn enue_sat(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_dimacs, m)?)?;
@@ -171,5 +201,6 @@ fn enue_sat(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_dimacs_stats, m)?)?;
     m.add_function(wrap_pyfunction!(solve_cnf_stats, m)?)?;
     m.add_function(wrap_pyfunction!(perturb_dimacs, m)?)?;
+    m.add_function(wrap_pyfunction!(perturb_dimacs_nnue, m)?)?;
     Ok(())
 }
