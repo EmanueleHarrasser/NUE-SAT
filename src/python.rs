@@ -165,7 +165,7 @@ fn perturb_dimacs(
 }
 
 #[pymodule]
-fn enue_sat(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn enue_sat(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_dimacs, m)?)?;
     m.add_function(wrap_pyfunction!(solve_cnf, m)?)?;
     m.add_function(wrap_pyfunction!(solve_dimacs_stats, m)?)?;

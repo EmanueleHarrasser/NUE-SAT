@@ -71,7 +71,7 @@ impl SolveState {
     }
 }
 
-pub fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Option<Assignment> {
+pub(crate) fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -> Option<Assignment> {
     let mut assignment = assignment;
 
     if !propagation::unit_propagate(cnf, &mut assignment, &mut state.stats) {
