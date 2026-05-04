@@ -172,6 +172,7 @@ fn perturb_dimacs_nnue(
     seed: Option<u64>,
     bias_exp: Option<f64>,
     top_k: Option<usize>,
+    top_prob: Option<f64>,
 ) -> PyResult<(bool, u64, u64)> {
     let input = fs::read_to_string(path).map_err(PyIOError::new_err)?;
     let cnf = parser::dimacs::parse_dimacs(&input)
@@ -184,6 +185,7 @@ fn perturb_dimacs_nnue(
         bias_exp.unwrap_or(2.0),
         Path::new(nnue_path),
         top_k.unwrap_or(5),
+        top_prob.unwrap_or(0.5),
     )
     .map_err(PyIOError::new_err)?;
 

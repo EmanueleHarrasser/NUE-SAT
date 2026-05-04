@@ -22,17 +22,26 @@ def collect_cnf_files(path: Path) -> list[Path]:
     return sorted(path.rglob("*.cnf"))
 
 
-def iter_output_path(cnf_root: Path, out_dir: Path, cnf_path: Path) -> Path:
+def iter_output_path(cnf_root: Path, out_dir: Path, cnf_path: Path, iteration: int) -> Path:
     if cnf_root.is_file():
-        return (out_dir / cnf_path.name).with_suffix(".csv")
+        return (out_dir / f"iter_{iteration}" / cnf_path.name).with_suffix(".csv")
     rel = cnf_path.relative_to(cnf_root)
-    return (out_dir / rel).with_suffix(".csv")
+    return (out_dir / f"iter_{iteration}" / rel).with_suffix(".csv")
 
 
 def reset_dir(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(parents=True, exist_ok=True)
+
+
+def enforce_sliding_window(buffer_dir: Path, current_iter: int, window_size: int) -> None:
+    if current_iter >= window_size:
+        obsolete_iter = current_iter - window_size
+        obsolete_dir = buffer_dir / f"iter_{obsolete_iter}"
+        assert obsolete_dir.is_dir(), f"Invariant violation: Expected obsolete directory {obsolete_dir} to exist."
+        shutil.rmtree(obsolete_dir)
+        print(f"🧹 Sliding Window: Deleted obsolete data in {obsolete_dir.name}")
 
 
 def sample_clause_length(k_min: int, k_max: int, alpha: float, rng: random.Random) -> int:
@@ -139,10 +148,12 @@ def process_single_cnf(
     nnue_bin: Path, 
     seed: int, 
     bias_exp: float, 
-    top_k: int
+    top_k: int,
+    top_prob: float,
+    iteration: int
 ) -> bool:
     """Worker function executed by ProcessPoolExecutor to process a single CNF."""
-    out_path = iter_output_path(cnf_root, buffer_dir, cnf_path)
+    out_path = iter_output_path(cnf_root, buffer_dir, cnf_path, iteration)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     
     ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_nnue(
@@ -152,6 +163,7 @@ def process_single_cnf(
         seed=seed,
         bias_exp=bias_exp,
         top_k=top_k,
+        top_prob=top_prob,
     )
     return ok
 
@@ -161,6 +173,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--cnf-count", type=int, default=1000)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--top-prob", type=float, default=0.5)
     return parser.parse_args()
 
 
@@ -185,13 +198,17 @@ def main() -> int:
     vars_max = 100
     bias_exp = 2.0
     top_k = 5
-    epochs = 1
+    top_prob = args.top_prob
+    epochs = 10
     batch_pairs = 256
     margin = 1.0
-    lr = 1e-3
+    lr = 5e-4
+    window_size = 5
 
     rng = random.Random(args.seed)
     model_dir.mkdir(parents=True, exist_ok=True)
+    
+    reset_dir(buffer_dir)
 
     for iteration in range(args.iterations):
         reset_dir(cnf_root)
@@ -209,7 +226,6 @@ def main() -> int:
             rng=rng,
         )
 
-        reset_dir(buffer_dir)
         cnf_files = collect_cnf_files(cnf_root)
         logged = 0
         
@@ -223,7 +239,9 @@ def main() -> int:
                     nnue_bin,
                     args.seed,
                     bias_exp,
-                    top_k
+                    top_k,
+                    top_prob,
+                    iteration
                 )
                 for cnf_path in cnf_files
             ]
@@ -233,6 +251,8 @@ def main() -> int:
                     logged += 1
 
         print(f"Iter {iteration}: logged {logged} / {len(cnf_files)}")
+
+        enforce_sliding_window(buffer_dir, iteration, window_size)
 
         best_pth, best_bin, best_val, last_train_loss, last_val_loss = train.train_model(
             data_dir=buffer_dir,

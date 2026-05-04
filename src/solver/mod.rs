@@ -131,6 +131,7 @@ pub fn generate_nnue_perturbation_log(
     bias_exp: f64,
     nnue_path: &Path,
     top_k: usize,
+    top_prob: f64,
 ) -> std::io::Result<perturb::PerturbationOutcome> {
-    perturb::generate_nnue_perturbation_log(cnf, log_path, seed, bias_exp, nnue_path, top_k)
+    perturb::generate_nnue_perturbation_log(cnf, log_path, seed, bias_exp, nnue_path, top_k, top_prob)
 }

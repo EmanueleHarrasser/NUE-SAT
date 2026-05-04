@@ -149,9 +149,11 @@ pub fn generate_nnue_perturbation_log(
     bias_exp: f64,
     nnue_path: &Path,
     top_k: usize,
+    top_prob: f64,
 ) -> std::io::Result<PerturbationOutcome> {
     assert!(bias_exp > 0.0);
     assert!(top_k > 0);
+    assert!(top_prob >= 0.0 && top_prob <= 1.0);
 
     let mut base_config = SolveConfig::new(0.0, seed);
     base_config.heuristic = HeuristicKind::Nnue;
@@ -213,6 +215,7 @@ pub fn generate_nnue_perturbation_log(
         0,
         &mut nnue,
         top_k,
+        top_prob,
     );
 
     let new_decisions = perturb_state.decisions;
@@ -388,6 +391,7 @@ fn solve_with_nnue_perturbation(
     depth: usize,
     nnue: &mut NnueModel,
     top_k: usize,
+    top_prob: f64,
 ) -> Option<Assignment> {
     let mut assignment = assignment;
 
@@ -415,6 +419,7 @@ fn solve_with_nnue_perturbation(
             depth + 1,
             nnue,
             top_k,
+            top_prob,
         ) {
             return Some(model);
         }
@@ -435,6 +440,7 @@ fn solve_with_nnue_perturbation(
             depth + 1,
             nnue,
             top_k,
+            top_prob,
         ) {
             return Some(model);
         }
@@ -451,15 +457,24 @@ fn solve_with_nnue_perturbation(
         let base_var = base_choices[depth].0;
         let base_value = base_choices[depth].1;
 
-        let mut candidates: Vec<Var> = ranked.iter().take(top_k.min(ranked.len())).copied().collect();
-        let rand_var = unassigned[rng.gen_range(0..unassigned.len())];
-        candidates.push(rand_var);
-
-        let perturb_var = if candidates.len() == 1 {
-            candidates[0]
+        let choose_top = rng.gen_bool(top_prob);
+        let perturb_var = if choose_top {
+            let candidates: Vec<Var> = ranked.iter().take(top_k.min(ranked.len())).copied().collect();
+            if candidates.len() == 1 {
+                candidates[0]
+            } else {
+                loop {
+                    let candidate = candidates[rng.gen_range(0..candidates.len())];
+                    if candidate != base_var {
+                        break candidate;
+                    }
+                }
+            }
+        } else if unassigned.len() == 1 {
+            unassigned[0]
         } else {
             loop {
-                let candidate = candidates[rng.gen_range(0..candidates.len())];
+                let candidate = unassigned[rng.gen_range(0..unassigned.len())];
                 if candidate != base_var {
                     break candidate;
                 }
@@ -509,6 +524,7 @@ fn solve_with_nnue_perturbation(
         depth + 1,
         nnue,
         top_k,
+        top_prob,
     ) {
         return Some(model);
     }
@@ -529,6 +545,7 @@ fn solve_with_nnue_perturbation(
         depth + 1,
         nnue,
         top_k,
+        top_prob,
     ) {
         return Some(model);
     }
