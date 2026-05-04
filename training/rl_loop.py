@@ -209,20 +209,18 @@ def process_single_cnf(
     """Worker function executed by ProcessPoolExecutor to process a single CNF."""
     out_path = iter_output_path(cnf_root, buffer_dir, cnf_path, iteration)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        ok, _, _ = enue_sat.perturb_dimacs_network(
-            str(cnf_path),
-            str(out_path),
-            str(network_bin),
-            seed=seed,
-            bias_exp=bias_exp,
-            top_k=top_k,
-            top_prob=top_prob,
-        )
-        return ok
-    except Exception as e:
-        print(f"\nWorker failed for {cnf_path}: {e}")
-        return False
+
+    ok, _, _ = enue_sat.perturb_dimacs_network(
+        str(cnf_path),
+        str(out_path),
+        str(network_bin),
+        seed=seed,
+        bias_exp=bias_exp,
+        top_k=top_k,
+        top_prob=top_prob,
+    )
+    return ok
+
 
 
 def parse_args() -> argparse.Namespace:

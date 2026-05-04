@@ -140,7 +140,7 @@ def train_model(
     val_paths = csv_paths[split_idx:]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = networkNet().to(device)
+    model = FcNet().to(device)
     if init_path is not None:
         model.load_state_dict(torch.load(init_path, map_location=device))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

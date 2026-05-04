@@ -34,6 +34,7 @@ struct NetworkPerturbState {
     stats: Stats,
     decisions: u64,
     backtracks: u64,
+    base_decisions: u64,
 }
 
 pub struct PerturbationOutcome {
@@ -200,6 +201,7 @@ pub fn generate_network_perturbation_log(
         stats: Stats::new(cnf.num_vars),
         decisions: 0,
         backtracks: 0,
+        base_decisions,
     };
     let mut record: Option<NetworkPerturbRecord> = None;
 
@@ -427,24 +429,10 @@ fn solve_with_network_perturbation(
         state.backtracks += 1;
         state.stats.inc_flip(var);
 
-        let mut try_second = assignment;
-        assert!(try_second.assign(var, !value));
-        if let Some(model) = solve_with_network_perturbation(
-            cnf,
-            try_second,
-            state,
-            base_choices,
-            perturb_idx,
-            rng,
-            record,
-            depth + 1,
-            network,
-            top_k,
-            top_prob,
-        ) {
-            return Some(model);
+        // Backtracked above perturbation point: cannot beat base path anymore.
+        if state.decisions < state.base_decisions {
+            state.decisions = state.base_decisions;
         }
-
         return None;
     }
 
