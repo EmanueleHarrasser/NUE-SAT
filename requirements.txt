@@ -1,0 +1,4 @@
+maturin
+pytorch
+tqdm
+cnfgen

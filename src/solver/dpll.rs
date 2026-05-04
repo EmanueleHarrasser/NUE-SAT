@@ -5,7 +5,7 @@ use crate::cnf::Cnf;
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
 use crate::solver::logging::{DecisionGroup, DecisionSample};
-use crate::solver::nnue::NnueModel;
+use crate::solver::network::networkModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
 use crate::solver::{branching, HeuristicKind, SolveConfig, SolveStats};
@@ -18,7 +18,7 @@ pub(crate) struct SolveState {
     pub epsilon: f64,
     pub decision_id: u32,
     pub heuristic: HeuristicKind,
-    pub nnue: Option<NnueModel>,
+    pub network: Option<networkModel>,
     pub decisions: u64,
     pub backtracks: u64,
 }
@@ -30,10 +30,10 @@ impl SolveState {
             None => StdRng::from_entropy(),
         };
 
-        let nnue = match config.heuristic {
-            HeuristicKind::Nnue => {
-                let path = config.nnue_path.expect("nnue_path required for NNUE");
-                Some(NnueModel::from_bin(&path).expect("failed to load nnue weights"))
+        let network = match config.heuristic {
+            HeuristicKind::network => {
+                let path = config.network_path.expect("network_path required for network");
+                Some(networkModel::from_bin(&path).expect("failed to load network weights"))
             }
             HeuristicKind::JwEpsilon => None,
         };
@@ -46,7 +46,7 @@ impl SolveState {
             epsilon: config.epsilon,
             decision_id: 0,
             heuristic: config.heuristic,
-            nnue,
+            network,
             decisions: 0,
             backtracks: 0,
         }
@@ -91,7 +91,7 @@ pub(crate) fn solve(cnf: &Cnf, assignment: Assignment, state: &mut SolveState) -
         &mut state.rng,
         state.epsilon,
         state.heuristic,
-        state.nnue.as_ref(),
+        state.network.as_ref(),
     ) {
         Some(decision) => decision,
         None => return None,

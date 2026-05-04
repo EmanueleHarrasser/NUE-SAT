@@ -3,7 +3,7 @@ pub mod branching;
 pub mod dpll;
 pub mod features;
 pub mod logging;
-pub mod nnue;
+pub mod network;
 pub mod perturb;
 pub mod propagation;
 pub mod stats;
@@ -16,14 +16,14 @@ pub use assignment::{Assignment, Model};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeuristicKind {
     JwEpsilon,
-    Nnue,
+    network,
 }
 
 impl HeuristicKind {
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "jw" | "jw-epsilon" | "jw_epsilon" => Some(HeuristicKind::JwEpsilon),
-            "nnue" => Some(HeuristicKind::Nnue),
+            "network" => Some(HeuristicKind::network),
             _ => None,
         }
     }
@@ -34,7 +34,7 @@ pub struct SolveConfig {
     pub epsilon: f64,
     pub seed: Option<u64>,
     pub heuristic: HeuristicKind,
-    pub nnue_path: Option<PathBuf>,
+    pub network_path: Option<PathBuf>,
 }
 
 impl SolveConfig {
@@ -44,7 +44,7 @@ impl SolveConfig {
             epsilon,
             seed,
             heuristic: HeuristicKind::JwEpsilon,
-            nnue_path: None,
+            network_path: None,
         }
     }
 }
@@ -55,7 +55,7 @@ impl Default for SolveConfig {
             epsilon: 0.1,
             seed: None,
             heuristic: HeuristicKind::JwEpsilon,
-            nnue_path: None,
+            network_path: None,
         }
     }
 }
@@ -124,14 +124,14 @@ pub fn generate_perturbation_log(
     perturb::generate_perturbation_log(cnf, log_path, seed, bias_exp)
 }
 
-pub fn generate_nnue_perturbation_log(
+pub fn generate_network_perturbation_log(
     cnf: &Cnf,
     log_path: &Path,
     seed: Option<u64>,
     bias_exp: f64,
-    nnue_path: &Path,
+    network_path: &Path,
     top_k: usize,
     top_prob: f64,
 ) -> std::io::Result<perturb::PerturbationOutcome> {
-    perturb::generate_nnue_perturbation_log(cnf, log_path, seed, bias_exp, nnue_path, top_k, top_prob)
+    perturb::generate_network_perturbation_log(cnf, log_path, seed, bias_exp, network_path, top_k, top_prob)
 }

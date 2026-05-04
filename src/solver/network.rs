@@ -10,7 +10,7 @@ const OUTPUT_DIM: usize = 1;
 const TOTAL_WEIGHTS: usize =
     HIDDEN_1 * INPUT_DIM + HIDDEN_1 + HIDDEN_2 * HIDDEN_1 + HIDDEN_2 + OUTPUT_DIM * HIDDEN_2 + OUTPUT_DIM;
 
-pub struct NnueModel {
+pub struct networkModel {
     w1: Vec<f32>,
     b1: Vec<f32>,
     w2: Vec<f32>,
@@ -19,10 +19,10 @@ pub struct NnueModel {
     b3: f32,
 }
 
-impl NnueModel {
+impl networkModel {
     pub fn from_bin(path: &Path) -> std::io::Result<Self> {
         let bytes = fs::read(path)?;
-        assert!(bytes.len() % 4 == 0, "nnue bin must be f32-aligned");
+        assert!(bytes.len() % 4 == 0, "network bin must be f32-aligned");
 
         let mut values = Vec::with_capacity(bytes.len() / 4);
         for chunk in bytes.chunks_exact(4) {
@@ -33,7 +33,7 @@ impl NnueModel {
 
         assert!(
             values.len() == TOTAL_WEIGHTS,
-            "nnue weight count mismatch: expected {}, got {}",
+            "network weight count mismatch: expected {}, got {}",
             TOTAL_WEIGHTS,
             values.len()
         );
@@ -51,7 +51,7 @@ impl NnueModel {
         idx += HIDDEN_2;
         let b3 = values[idx];
 
-        Ok(NnueModel { w1, b1, w2, b2, w3, b3 })
+        Ok(networkModel { w1, b1, w2, b2, w3, b3 })
     }
 
     pub fn score(&self, features: &FeatureVector) -> f32 {

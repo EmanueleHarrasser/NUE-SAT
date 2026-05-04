@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class NnueNet(nn.Module):
+class FcNet(nn.Module):
     def __init__(self, input_dim=10, hidden1=256, hidden2=256):
         super().__init__()
         self.net = nn.Sequential(

@@ -1,3 +1,6 @@
 /data
 /target
 /output
+/models
+/training/__pycache__
+/scripts/__pycache__

@@ -78,6 +78,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=["ratio", "fixed"], default="ratio")
     parser.add_argument("--ratio-min", type=float, default=1.5)
     parser.add_argument("--ratio-max", type=float, default=3.5)
+    parser.add_argument("--vars-min", type=int, default=20)
+    parser.add_argument("--vars-max", type=int, default=100)
     parser.add_argument("--k-min", type=int, default=2)
     parser.add_argument("--k-max", type=int, default=4)
     parser.add_argument("--k-alpha", type=float, default=1.5)
@@ -108,7 +110,7 @@ def main() -> int:
                 f"Reached max attempts ({args.max_attempts}) with SAT {sat_count} / UNSAT {unsat_count}"
             )
 
-        num_vars = random.randint(20, 100)
+        num_vars = random.randint(args.vars_min, args.vars_max)
         num_clauses = clause_count(num_vars, args.mode, args.clauses, args.ratio_min, args.ratio_max)
         text = generate_random_instance(num_vars, num_clauses, args.k_min, args.k_max, args.k_alpha)
         is_sat = enue_sat.solve_cnf(text, None, epsilon=0.0, seed=0)

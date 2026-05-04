@@ -13,7 +13,7 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 
 import enue_sat
 from tqdm import tqdm
-from nnue import train
+from training import train
 
 
 def collect_cnf_files(path: Path) -> list[Path]:
@@ -145,7 +145,7 @@ def process_single_cnf(
     cnf_path: Path, 
     cnf_root: Path, 
     buffer_dir: Path, 
-    nnue_bin: Path, 
+    network_bin: Path, 
     seed: int, 
     bias_exp: float, 
     top_k: int,
@@ -156,10 +156,10 @@ def process_single_cnf(
     out_path = iter_output_path(cnf_root, buffer_dir, cnf_path, iteration)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     
-    ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_nnue(
+    ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_network(
         str(cnf_path),
         str(out_path),
-        str(nnue_bin),
+        str(network_bin),
         seed=seed,
         bias_exp=bias_exp,
         top_k=top_k,
@@ -173,7 +173,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--cnf-count", type=int, default=1000)
     parser.add_argument("--seed", type=int)
-    parser.add_argument("--top-prob", type=float, default=0.5)
     return parser.parse_args()
 
 
@@ -184,8 +183,8 @@ def main() -> int:
     cnf_root = root / "data/rl_iter"
     buffer_dir = root / "output/rl_buffer"
     model_dir = root / "models"
-    nnue_bin = model_dir / "nnue.bin"
-    init_path = model_dir / "nnue.pth"
+    network_bin = model_dir / "network.bin"
+    init_path = model_dir / "network.pth"
     best_overall = None
 
     ratio_min = 1.5
@@ -198,7 +197,7 @@ def main() -> int:
     vars_max = 100
     bias_exp = 2.0
     top_k = 5
-    top_prob = args.top_prob
+    top_prob = 0
     epochs = 10
     batch_pairs = 256
     margin = 1.0
@@ -236,7 +235,7 @@ def main() -> int:
                     cnf_path,
                     cnf_root,
                     buffer_dir,
-                    nnue_bin,
+                    network_bin,
                     args.seed,
                     bias_exp,
                     top_k,
@@ -263,8 +262,8 @@ def main() -> int:
             margin=margin,
             lr=lr,
             seed=args.seed,
-            best_name="nnue_rl_iter_best",
-            latest_name="nnue_rl_latest",
+            best_name="network_rl_iter_best",
+            latest_name="network_rl_latest",
         )
 
         print(
@@ -276,14 +275,13 @@ def main() -> int:
             )
         )
 
-        latest_pth = model_dir / "nnue_rl_latest.pth"
-        latest_bin = model_dir / "nnue_rl_latest.bin"
-        nnue_bin = latest_bin
-        init_path = latest_pth
+        
+        network_bin = model_dir / "network_rl_best.bin"
+        init_path = model_dir / "network_rl_best.pth"
 
         if best_overall is None or best_val < best_overall:
-            shutil.copy2(best_pth, model_dir / "nnue_rl_best.pth")
-            shutil.copy2(best_bin, model_dir / "nnue_rl_best.bin")
+            shutil.copy2(best_pth, model_dir / "network_rl_best.pth")
+            shutil.copy2(best_bin, model_dir / "network_rl_best.bin")
             best_overall = best_val
 
     return 0

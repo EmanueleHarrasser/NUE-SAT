@@ -16,7 +16,7 @@ def collect_cnf_files(path: Path) -> list[Path]:
 def run_solver(
     cnf_files: list[Path],
     heuristic: str,
-    nnue_path: str | None,
+    network_path: str | None,
 ) -> tuple[int, int, float, float, float, float]:
     sat_count = 0
     unsat_count = 0
@@ -32,7 +32,7 @@ def run_solver(
             epsilon=0.0,
             seed=0,
             heuristic=heuristic,
-            nnue_path=nnue_path,
+            network_path=network_path,
         )
         if is_sat:
             sat_count += 1
@@ -54,7 +54,7 @@ def run_solver(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("cnf_path", help="File or directory containing .cnf files")
-    parser.add_argument("--nnue", required=True, help="Path to NNUE .bin weights")
+    parser.add_argument("--network", required=True, help="Path to network .bin weights")
     return parser.parse_args()
 
 
@@ -66,7 +66,7 @@ def main() -> int:
         raise SystemExit(f"No .cnf files found under {cnf_root}")
 
     jw_sat, jw_unsat, jw_time, jw_dec, jw_back, jw_conf = run_solver(cnf_files, "jw", None)
-    nn_sat, nn_unsat, nn_time, nn_dec, nn_back, nn_conf = run_solver(cnf_files, "nnue", args.nnue)
+    nn_sat, nn_unsat, nn_time, nn_dec, nn_back, nn_conf = run_solver(cnf_files, "network", args.network)
 
     total = len(cnf_files)
     jw_avg = jw_time / total
@@ -75,7 +75,7 @@ def main() -> int:
     print("JW (epsilon=0)")
     print(f"  SAT: {jw_sat}  UNSAT: {jw_unsat}  total: {jw_time:.3f}s  avg: {jw_avg:.6f}s")
     print(f"  avg decisions: {jw_dec:.2f}  avg backtracks: {jw_back:.2f}  avg conflicts: {jw_conf:.2f}")
-    print("NNUE")
+    print("network")
     print(f"  SAT: {nn_sat}  UNSAT: {nn_unsat}  total: {nn_time:.3f}s  avg: {nn_avg:.6f}s")
     print(f"  avg decisions: {nn_dec:.2f}  avg backtracks: {nn_back:.2f}  avg conflicts: {nn_conf:.2f}")
     return 0

@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::cnf::{Cnf, Var};
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
-use crate::solver::nnue::NnueModel;
+use crate::solver::network::networkModel;
 use crate::solver::stats::Stats;
 use crate::solver::HeuristicKind;
 
@@ -29,7 +29,7 @@ pub fn choose_decision(
     rng: &mut StdRng,
     epsilon: f64,
     heuristic: HeuristicKind,
-    nnue: Option<&NnueModel>,
+    network: Option<&networkModel>,
 ) -> Option<Decision> {
     let mut unassigned: Vec<Var> = Vec::new();
     for i in 1..=cnf.num_vars {
@@ -95,8 +95,8 @@ pub fn choose_decision(
                 runner_ups,
             })
         }
-        HeuristicKind::Nnue => {
-            let model = nnue.expect("nnue model required");
+        HeuristicKind::network => {
+            let model = network.expect("network model required");
             let mut scored: Vec<(f32, Var)> = Vec::with_capacity(unassigned.len());
             for &candidate in &unassigned {
                 let feats = features::compute_features(cnf, assignment, stats, candidate, trail_depth);

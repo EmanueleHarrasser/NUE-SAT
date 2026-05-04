@@ -8,7 +8,7 @@ import random
 import torch
 from torch import nn
 from tqdm import tqdm
-from nnue.model import NnueNet
+from training.model import networkNet
 
 
 FEATURE_COLUMNS = [
@@ -125,7 +125,7 @@ def train_model(
     margin: float,
     lr: float,
     seed: int | None,
-    best_name: str = "nnue",
+    best_name: str = "network",
     latest_name: str | None = None,
 ) -> tuple[Path, Path, float, float, float]:
     csv_paths = sorted(data_dir.rglob("*.csv"))
@@ -140,7 +140,7 @@ def train_model(
     val_paths = csv_paths[split_idx:]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = NnueNet().to(device)
+    model = networkNet().to(device)
     if init_path is not None:
         model.load_state_dict(torch.load(init_path, map_location=device))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

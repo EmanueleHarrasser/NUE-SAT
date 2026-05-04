@@ -7,7 +7,7 @@ use crate::cnf::{Cnf, Var};
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
 use crate::solver::logging::{DecisionGroup, DecisionSample};
-use crate::solver::nnue::NnueModel;
+use crate::solver::network::networkModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
 use crate::solver::{dpll, HeuristicKind, SolveConfig};
@@ -21,7 +21,7 @@ struct PerturbRecord {
     rand_features: features::FeatureVector,
 }
 
-struct NnuePerturbRecord {
+struct networkPerturbRecord {
     base_var: Var,
     base_value: bool,
     base_features: features::FeatureVector,
@@ -30,7 +30,7 @@ struct NnuePerturbRecord {
     perturb_features: features::FeatureVector,
 }
 
-struct NnuePerturbState {
+struct networkPerturbState {
     stats: Stats,
     decisions: u64,
     backtracks: u64,
@@ -142,12 +142,12 @@ pub fn generate_perturbation_log(
     })
 }
 
-pub fn generate_nnue_perturbation_log(
+pub fn generate_network_perturbation_log(
     cnf: &Cnf,
     log_path: &Path,
     seed: Option<u64>,
     bias_exp: f64,
-    nnue_path: &Path,
+    network_path: &Path,
     top_k: usize,
     top_prob: f64,
 ) -> std::io::Result<PerturbationOutcome> {
@@ -156,8 +156,8 @@ pub fn generate_nnue_perturbation_log(
     assert!(top_prob >= 0.0 && top_prob <= 1.0);
 
     let mut base_config = SolveConfig::new(0.0, seed);
-    base_config.heuristic = HeuristicKind::Nnue;
-    base_config.nnue_path = Some(nnue_path.to_path_buf());
+    base_config.heuristic = HeuristicKind::network;
+    base_config.network_path = Some(network_path.to_path_buf());
 
     let assignment = Assignment::new(cnf.num_vars);
     let mut base_state = dpll::SolveState::new(cnf.num_vars, base_config);
@@ -195,16 +195,16 @@ pub fn generate_nnue_perturbation_log(
     };
     let perturb_idx = biased_index(base_choices.len(), bias_exp, &mut rng);
 
-    let mut nnue = NnueModel::from_bin(nnue_path).expect("failed to load nnue weights");
-    let mut perturb_state = NnuePerturbState {
+    let mut network = networkModel::from_bin(network_path).expect("failed to load network weights");
+    let mut perturb_state = networkPerturbState {
         stats: Stats::new(cnf.num_vars),
         decisions: 0,
         backtracks: 0,
     };
-    let mut record: Option<NnuePerturbRecord> = None;
+    let mut record: Option<networkPerturbRecord> = None;
 
     let assignment = Assignment::new(cnf.num_vars);
-    let model = solve_with_nnue_perturbation(
+    let model = solve_with_network_perturbation(
         cnf,
         assignment,
         &mut perturb_state,
@@ -213,7 +213,7 @@ pub fn generate_nnue_perturbation_log(
         &mut rng,
         &mut record,
         0,
-        &mut nnue,
+        &mut network,
         top_k,
         top_prob,
     );
@@ -380,16 +380,16 @@ fn solve_with_perturbation(
     None
 }
 
-fn solve_with_nnue_perturbation(
+fn solve_with_network_perturbation(
     cnf: &Cnf,
     assignment: Assignment,
-    state: &mut NnuePerturbState,
+    state: &mut networkPerturbState,
     base_choices: &[(Var, bool)],
     perturb_idx: usize,
     rng: &mut StdRng,
-    record: &mut Option<NnuePerturbRecord>,
+    record: &mut Option<networkPerturbRecord>,
     depth: usize,
-    nnue: &mut NnueModel,
+    network: &mut networkModel,
     top_k: usize,
     top_prob: f64,
 ) -> Option<Assignment> {
@@ -408,7 +408,7 @@ fn solve_with_nnue_perturbation(
 
         let mut try_first = assignment.clone();
         assert!(try_first.assign(var, value));
-        if let Some(model) = solve_with_nnue_perturbation(
+        if let Some(model) = solve_with_network_perturbation(
             cnf,
             try_first,
             state,
@@ -417,7 +417,7 @@ fn solve_with_nnue_perturbation(
             rng,
             record,
             depth + 1,
-            nnue,
+            network,
             top_k,
             top_prob,
         ) {
@@ -429,7 +429,7 @@ fn solve_with_nnue_perturbation(
 
         let mut try_second = assignment;
         assert!(try_second.assign(var, !value));
-        if let Some(model) = solve_with_nnue_perturbation(
+        if let Some(model) = solve_with_network_perturbation(
             cnf,
             try_second,
             state,
@@ -438,7 +438,7 @@ fn solve_with_nnue_perturbation(
             rng,
             record,
             depth + 1,
-            nnue,
+            network,
             top_k,
             top_prob,
         ) {
@@ -451,7 +451,7 @@ fn solve_with_nnue_perturbation(
     let unassigned = unassigned_vars(cnf, &assignment);
     let (pos_scores, neg_scores) = jw_scores(cnf, &assignment);
     let trail_depth = depth as u32;
-    let ranked = rank_nnue(cnf, &assignment, &state.stats, trail_depth, nnue, &unassigned);
+    let ranked = rank_network(cnf, &assignment, &state.stats, trail_depth, network, &unassigned);
 
     let (var, value) = if depth == perturb_idx {
         let base_var = base_choices[depth].0;
@@ -492,7 +492,7 @@ fn solve_with_nnue_perturbation(
                 perturb_var,
                 trail_depth,
             );
-            *record = Some(NnuePerturbRecord {
+            *record = Some(networkPerturbRecord {
                 base_var,
                 base_value,
                 base_features,
@@ -513,7 +513,7 @@ fn solve_with_nnue_perturbation(
 
     let mut try_first = assignment.clone();
     assert!(try_first.assign(var, value));
-    if let Some(model) = solve_with_nnue_perturbation(
+    if let Some(model) = solve_with_network_perturbation(
         cnf,
         try_first,
         state,
@@ -522,7 +522,7 @@ fn solve_with_nnue_perturbation(
         rng,
         record,
         depth + 1,
-        nnue,
+        network,
         top_k,
         top_prob,
     ) {
@@ -534,7 +534,7 @@ fn solve_with_nnue_perturbation(
 
     let mut try_second = assignment;
     assert!(try_second.assign(var, !value));
-    if let Some(model) = solve_with_nnue_perturbation(
+    if let Some(model) = solve_with_network_perturbation(
         cnf,
         try_second,
         state,
@@ -543,7 +543,7 @@ fn solve_with_nnue_perturbation(
         rng,
         record,
         depth + 1,
-        nnue,
+        network,
         top_k,
         top_prob,
     ) {
@@ -642,18 +642,18 @@ fn jw_scores(cnf: &Cnf, assignment: &Assignment) -> (Vec<f64>, Vec<f64>) {
     (pos_scores, neg_scores)
 }
 
-fn rank_nnue(
+fn rank_network(
     cnf: &Cnf,
     assignment: &Assignment,
     stats: &Stats,
     trail_depth: u32,
-    nnue: &mut NnueModel,
+    network: &mut networkModel,
     unassigned: &[Var],
 ) -> Vec<Var> {
     let mut scored: Vec<(f32, Var)> = Vec::with_capacity(unassigned.len());
     for &candidate in unassigned {
         let feats = features::compute_features(cnf, assignment, stats, candidate, trail_depth);
-        let score = nnue.score(&feats);
+        let score = network.score(&feats);
         scored.push((score, candidate));
     }
 
