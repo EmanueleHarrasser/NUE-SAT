@@ -8,7 +8,7 @@ import random
 import torch
 from torch import nn
 from tqdm import tqdm
-from training.model import networkNet
+from training.model import FcNet
 
 
 FEATURE_COLUMNS = [

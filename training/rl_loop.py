@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import os
 import random
 import shutil
-import os
+import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import sys
 from pathlib import Path as _Path
+import shutil
 
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 
@@ -44,50 +47,69 @@ def enforce_sliding_window(buffer_dir: Path, current_iter: int, window_size: int
         print(f"🧹 Sliding Window: Deleted obsolete data in {obsolete_dir.name}")
 
 
-def sample_clause_length(k_min: int, k_max: int, alpha: float, rng: random.Random) -> int:
-    weights = [k ** (-alpha) for k in range(k_min, k_max + 1)]
-    total = sum(weights)
-    r = rng.random() * total
-    acc = 0.0
-    for k, w in zip(range(k_min, k_max + 1), weights):
-        acc += w
-        if r <= acc:
-            return k
-    return k_max
+import sys
+import subprocess
+import random
+
+def generate_cnfgen_instance(vars_min: int, vars_max: int, rng: random.Random) -> str:
+    """
+    Uses CNFgen CLI to create a structured 3-Coloring problem on a gnm graph.
+    Targets the phase transition (avg degree ~4.7) for a 50/50 SAT/UNSAT mix.
+    """
+    # 3-coloring creates 3 variables per vertex
+    # Enforce minimum of 6 vertices so avg degree of 4.7 is mathematically possible
+    v_min = max(6, vars_min // 3)
+    v_max = max(7, vars_max // 3)
+
+    vertices = rng.randint(v_min, v_max)
+
+    # 3-Coloring phase transition is at average degree ≈ 4.7
+    # Total Edges = (Vertices * Average Degree) / 2
+    edges = int((vertices * 4.7) / 2)
+
+    # Safety check: Cap edges at the absolute mathematical maximum for N vertices
+    max_edges = (vertices * (vertices - 1)) // 2
+    edges = min(edges, max_edges)
+
+    cnfgen_exe = shutil.which("cnfgen")
+    # Use sys.executable to prevent Windows subprocess -1 exit codes
+    # Command structure for gnm: cnfgen kcolor 3 gnm <vertices> <edges>
+    
+    cmd = [
+        cnfgen_exe,
+        "kcolor", "3",
+        "gnm", str(vertices), str(edges)
+    ]
+
+    try:
+        # Call the CLI and capture the output
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print(f"\n--- CNFgen Failed ---")
+        print(f"Command: {' '.join(cmd)}")
+        print(f"Error output:\n{e.stderr}")
+        raise
 
 
-def make_clause(num_vars: int, k_min: int, k_max: int, alpha: float, rng: random.Random) -> list[int]:
-    k = sample_clause_length(k_min, k_max, alpha, rng)
-    vars_sample = rng.sample(range(1, num_vars + 1), k)
-    clause = []
-    for var in vars_sample:
-        sign = rng.choice([1, -1])
-        clause.append(sign * var)
-    return clause
+def generate_and_solve_worker(vars_min: int, vars_max: int, seed: int) -> tuple[bool, int, str]:
+    """Worker function to generate and solve a single CNF in a separate process."""
+    rng = random.Random(seed)
 
+    text = generate_cnfgen_instance(vars_min, vars_max, rng)
 
-def cnf_text(num_vars: int, clauses: list[list[int]]) -> str:
-    lines = [f"p cnf {num_vars} {len(clauses)}"]
-    for clause in clauses:
-        lines.append(" ".join(str(lit) for lit in clause) + " 0")
-    return "\n".join(lines) + "\n"
+    is_sat = enue_sat.solve_cnf(text, None, epsilon=0.0, seed=0)
 
+    num_vars = 0
+    for line in text.splitlines():
+        if line.startswith("p cnf "):
+            num_vars = int(line.split()[2])
+            break
 
-def clause_count(num_vars: int, ratio_min: float, ratio_max: float, rng: random.Random) -> int:
-    ratio = rng.uniform(ratio_min, ratio_max)
-    return max(1, int(round(ratio * num_vars)))
+    if num_vars == 0:
+        raise ValueError("Could not find 'p cnf' header in CNFgen output")
 
-
-def generate_random_instance(
-    num_vars: int,
-    num_clauses: int,
-    k_min: int,
-    k_max: int,
-    alpha: float,
-    rng: random.Random,
-) -> str:
-    clauses = [make_clause(num_vars, k_min, k_max, alpha, rng) for _ in range(num_clauses)]
-    return cnf_text(num_vars, clauses)
+    return is_sat, num_vars, text
 
 
 def write_instance(path: Path, text: str) -> None:
@@ -97,11 +119,6 @@ def write_instance(path: Path, text: str) -> None:
 def generate_cnf_dataset(
     out_dir: Path,
     count: int,
-    ratio_min: float,
-    ratio_max: float,
-    k_min: int,
-    k_max: int,
-    k_alpha: float,
     max_attempts: int,
     vars_min: int,
     vars_max: int,
@@ -113,32 +130,69 @@ def generate_cnf_dataset(
     unsat_count = 0
     attempts = 0
 
-    bar = tqdm(total=count, desc="Generate CNFs", unit="cnf")
-    try:
-        while sat_count < sat_target or unsat_count < unsat_target:
-            if attempts >= max_attempts:
-                raise SystemExit(
-                    f"Reached max attempts ({max_attempts}) with SAT {sat_count} / UNSAT {unsat_count}"
+    bar = tqdm(total=count, desc="Generate CNFs (Multi-Core)", unit="cnf")
+
+    max_workers = os.cpu_count() or 4
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = set()
+
+        for _ in range(max_workers * 2):
+            if attempts < max_attempts:
+                futures.add(
+                    executor.submit(
+                        generate_and_solve_worker,
+                        vars_min,
+                        vars_max,
+                        rng.randint(0, 2**32 - 1),
+                    )
                 )
+                attempts += 1
 
-            num_vars = rng.randint(vars_min, vars_max)
-            num_clauses = clause_count(num_vars, ratio_min, ratio_max, rng)
-            text = generate_random_instance(num_vars, num_clauses, k_min, k_max, k_alpha, rng)
-            is_sat = enue_sat.solve_cnf(text, None, epsilon=0.0, seed=0)
-            attempts += 1
+        while futures and (sat_count < sat_target or unsat_count < unsat_target):
+            done, futures = concurrent.futures.wait(
+                futures,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
 
-            if is_sat and sat_count < sat_target:
-                sat_count += 1
-                path = out_dir / f"sr_{sat_count}_u{num_vars}_c{num_clauses}_sat.cnf"
-                write_instance(path, text)
-                bar.update(1)
-            elif (not is_sat) and unsat_count < unsat_target:
-                unsat_count += 1
-                path = out_dir / f"sr_{unsat_count}_u{num_vars}_c{num_clauses}_unsat.cnf"
-                write_instance(path, text)
-                bar.update(1)
-    finally:
-        bar.close()
+            for future in done:
+                try:
+                    is_sat, num_vars, text = future.result()
+
+                    if is_sat and sat_count < sat_target:
+                        sat_count += 1
+                        path = out_dir / f"kcolor_{sat_count}_v{num_vars}_sat.cnf"
+                        write_instance(path, text)
+                        bar.update(1)
+                    elif (not is_sat) and unsat_count < unsat_target:
+                        unsat_count += 1
+                        path = out_dir / f"kcolor_{unsat_count}_v{num_vars}_unsat.cnf"
+                        write_instance(path, text)
+                        bar.update(1)
+
+                except Exception as e:
+                    print(f"\nWorker failed: {e}")
+
+                if sat_count < sat_target or unsat_count < unsat_target:
+                    if attempts < max_attempts:
+                        futures.add(
+                            executor.submit(
+                                generate_and_solve_worker,
+                                vars_min,
+                                vars_max,
+                                rng.randint(0, 2**32 - 1),
+                            )
+                        )
+                        attempts += 1
+                    elif not futures:
+                        raise SystemExit(
+                            f"\nReached max attempts ({max_attempts}) with SAT {sat_count} / UNSAT {unsat_count}"
+                        )
+
+    for future in futures:
+        future.cancel()
+
+    bar.close()
 
 
 def process_single_cnf(
@@ -155,17 +209,20 @@ def process_single_cnf(
     """Worker function executed by ProcessPoolExecutor to process a single CNF."""
     out_path = iter_output_path(cnf_root, buffer_dir, cnf_path, iteration)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    ok, base_decisions, new_decisions = enue_sat.perturb_dimacs_network(
-        str(cnf_path),
-        str(out_path),
-        str(network_bin),
-        seed=seed,
-        bias_exp=bias_exp,
-        top_k=top_k,
-        top_prob=top_prob,
-    )
-    return ok
+    try:
+        ok, _, _ = enue_sat.perturb_dimacs_network(
+            str(cnf_path),
+            str(out_path),
+            str(network_bin),
+            seed=seed,
+            bias_exp=bias_exp,
+            top_k=top_k,
+            top_prob=top_prob,
+        )
+        return ok
+    except Exception as e:
+        print(f"\nWorker failed for {cnf_path}: {e}")
+        return False
 
 
 def parse_args() -> argparse.Namespace:
@@ -187,11 +244,6 @@ def main() -> int:
     init_path = model_dir / "network.pth"
     best_overall = None
 
-    ratio_min = 1.5
-    ratio_max = 3.0
-    k_min = 2
-    k_max = 4
-    k_alpha = 1.5
     max_attempts = 50000
     vars_min = 20
     vars_max = 100
@@ -214,11 +266,6 @@ def main() -> int:
         generate_cnf_dataset(
             out_dir=cnf_root,
             count=args.cnf_count,
-            ratio_min=ratio_min,
-            ratio_max=ratio_max,
-            k_min=k_min,
-            k_max=k_max,
-            k_alpha=k_alpha,
             max_attempts=max_attempts,
             vars_min=vars_min,
             vars_max=vars_max,
