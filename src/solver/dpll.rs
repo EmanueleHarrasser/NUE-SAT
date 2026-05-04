@@ -5,7 +5,7 @@ use crate::cnf::Cnf;
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
 use crate::solver::logging::{DecisionGroup, DecisionSample};
-use crate::solver::network::networkModel;
+use crate::solver::network::NetworkModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
 use crate::solver::{branching, HeuristicKind, SolveConfig, SolveStats};
@@ -18,7 +18,7 @@ pub(crate) struct SolveState {
     pub epsilon: f64,
     pub decision_id: u32,
     pub heuristic: HeuristicKind,
-    pub network: Option<networkModel>,
+    pub network: Option<NetworkModel>,
     pub decisions: u64,
     pub backtracks: u64,
 }
@@ -31,9 +31,9 @@ impl SolveState {
         };
 
         let network = match config.heuristic {
-            HeuristicKind::network => {
+            HeuristicKind::Network => {
                 let path = config.network_path.expect("network_path required for network");
-                Some(networkModel::from_bin(&path).expect("failed to load network weights"))
+                Some(NetworkModel::from_bin(&path).expect("failed to load network weights"))
             }
             HeuristicKind::JwEpsilon => None,
         };

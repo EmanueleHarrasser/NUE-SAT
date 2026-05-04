@@ -10,7 +10,7 @@ const OUTPUT_DIM: usize = 1;
 const TOTAL_WEIGHTS: usize =
     HIDDEN_1 * INPUT_DIM + HIDDEN_1 + HIDDEN_2 * HIDDEN_1 + HIDDEN_2 + OUTPUT_DIM * HIDDEN_2 + OUTPUT_DIM;
 
-pub struct networkModel {
+pub struct NetworkModel {
     w1: Vec<f32>,
     b1: Vec<f32>,
     w2: Vec<f32>,
@@ -19,7 +19,7 @@ pub struct networkModel {
     b3: f32,
 }
 
-impl networkModel {
+impl NetworkModel {
     pub fn from_bin(path: &Path) -> std::io::Result<Self> {
         let bytes = fs::read(path)?;
         assert!(bytes.len() % 4 == 0, "network bin must be f32-aligned");
@@ -51,7 +51,7 @@ impl networkModel {
         idx += HIDDEN_2;
         let b3 = values[idx];
 
-        Ok(networkModel { w1, b1, w2, b2, w3, b3 })
+        Ok(NetworkModel { w1, b1, w2, b2, w3, b3 })
     }
 
     pub fn score(&self, features: &FeatureVector) -> f32 {

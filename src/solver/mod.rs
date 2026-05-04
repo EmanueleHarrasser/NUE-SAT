@@ -16,14 +16,14 @@ pub use assignment::{Assignment, Model};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeuristicKind {
     JwEpsilon,
-    network,
+    Network,
 }
 
 impl HeuristicKind {
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "jw" | "jw-epsilon" | "jw_epsilon" => Some(HeuristicKind::JwEpsilon),
-            "network" => Some(HeuristicKind::network),
+            "network" => Some(HeuristicKind::Network),
             _ => None,
         }
     }

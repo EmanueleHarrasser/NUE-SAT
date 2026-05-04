@@ -26,7 +26,7 @@ fn solve_dimacs(
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     let heuristic = parse_heuristic(heuristic).map_err(PyValueError::new_err)?;
-    if heuristic == HeuristicKind::network && network_path.is_none() {
+    if heuristic == HeuristicKind::Network && network_path.is_none() {
         return Err(PyValueError::new_err("network_path is required for heuristic=network"));
     }
     let mut config = SolveConfig::new(epsilon.unwrap_or(0.1), seed);
@@ -54,7 +54,7 @@ fn solve_cnf(
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     let heuristic = parse_heuristic(heuristic).map_err(PyValueError::new_err)?;
-    if heuristic == HeuristicKind::network && network_path.is_none() {
+    if heuristic == HeuristicKind::Network && network_path.is_none() {
         return Err(PyValueError::new_err("network_path is required for heuristic=network"));
     }
     let mut config = SolveConfig::new(epsilon.unwrap_or(0.1), seed);
@@ -83,7 +83,7 @@ fn solve_dimacs_stats(
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     let heuristic = parse_heuristic(heuristic).map_err(PyValueError::new_err)?;
-    if heuristic == HeuristicKind::network && network_path.is_none() {
+    if heuristic == HeuristicKind::Network && network_path.is_none() {
         return Err(PyValueError::new_err("network_path is required for heuristic=network"));
     }
     let mut config = SolveConfig::new(epsilon.unwrap_or(0.1), seed);
@@ -117,7 +117,7 @@ fn solve_cnf_stats(
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     let heuristic = parse_heuristic(heuristic).map_err(PyValueError::new_err)?;
-    if heuristic == HeuristicKind::network && network_path.is_none() {
+    if heuristic == HeuristicKind::Network && network_path.is_none() {
         return Err(PyValueError::new_err("network_path is required for heuristic=network"));
     }
     let mut config = SolveConfig::new(epsilon.unwrap_or(0.1), seed);

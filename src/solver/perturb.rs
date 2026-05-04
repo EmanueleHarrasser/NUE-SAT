@@ -7,7 +7,7 @@ use crate::cnf::{Cnf, Var};
 use crate::solver::assignment::Assignment;
 use crate::solver::features;
 use crate::solver::logging::{DecisionGroup, DecisionSample};
-use crate::solver::network::networkModel;
+use crate::solver::network::NetworkModel;
 use crate::solver::propagation;
 use crate::solver::stats::Stats;
 use crate::solver::{dpll, HeuristicKind, SolveConfig};
@@ -21,7 +21,7 @@ struct PerturbRecord {
     rand_features: features::FeatureVector,
 }
 
-struct networkPerturbRecord {
+struct NetworkPerturbRecord {
     base_var: Var,
     base_value: bool,
     base_features: features::FeatureVector,
@@ -30,7 +30,7 @@ struct networkPerturbRecord {
     perturb_features: features::FeatureVector,
 }
 
-struct networkPerturbState {
+struct NetworkPerturbState {
     stats: Stats,
     decisions: u64,
     backtracks: u64,
@@ -156,7 +156,7 @@ pub fn generate_network_perturbation_log(
     assert!(top_prob >= 0.0 && top_prob <= 1.0);
 
     let mut base_config = SolveConfig::new(0.0, seed);
-    base_config.heuristic = HeuristicKind::network;
+    base_config.heuristic = HeuristicKind::Network;
     base_config.network_path = Some(network_path.to_path_buf());
 
     let assignment = Assignment::new(cnf.num_vars);
@@ -195,13 +195,13 @@ pub fn generate_network_perturbation_log(
     };
     let perturb_idx = biased_index(base_choices.len(), bias_exp, &mut rng);
 
-    let mut network = networkModel::from_bin(network_path).expect("failed to load network weights");
-    let mut perturb_state = networkPerturbState {
+    let mut network = NetworkModel::from_bin(network_path).expect("failed to load network weights");
+    let mut perturb_state = NetworkPerturbState {
         stats: Stats::new(cnf.num_vars),
         decisions: 0,
         backtracks: 0,
     };
-    let mut record: Option<networkPerturbRecord> = None;
+    let mut record: Option<NetworkPerturbRecord> = None;
 
     let assignment = Assignment::new(cnf.num_vars);
     let model = solve_with_network_perturbation(
@@ -383,13 +383,13 @@ fn solve_with_perturbation(
 fn solve_with_network_perturbation(
     cnf: &Cnf,
     assignment: Assignment,
-    state: &mut networkPerturbState,
+    state: &mut NetworkPerturbState,
     base_choices: &[(Var, bool)],
     perturb_idx: usize,
     rng: &mut StdRng,
-    record: &mut Option<networkPerturbRecord>,
+    record: &mut Option<NetworkPerturbRecord>,
     depth: usize,
-    network: &mut networkModel,
+    network: &mut NetworkModel,
     top_k: usize,
     top_prob: f64,
 ) -> Option<Assignment> {
@@ -492,7 +492,7 @@ fn solve_with_network_perturbation(
                 perturb_var,
                 trail_depth,
             );
-            *record = Some(networkPerturbRecord {
+            *record = Some(NetworkPerturbRecord {
                 base_var,
                 base_value,
                 base_features,
@@ -647,7 +647,7 @@ fn rank_network(
     assignment: &Assignment,
     stats: &Stats,
     trail_depth: u32,
-    network: &mut networkModel,
+    network: &mut NetworkModel,
     unassigned: &[Var],
 ) -> Vec<Var> {
     let mut scored: Vec<(f32, Var)> = Vec::with_capacity(unassigned.len());
