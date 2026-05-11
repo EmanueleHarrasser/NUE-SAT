@@ -225,7 +225,7 @@ def process_single_cnf(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--iterations", type=int, default=5)
+    parser.add_argument("--iterations", type=int, default=20)
     parser.add_argument("--cnf-count", type=int, default=1000)
     parser.add_argument("--seed", type=int)
     return parser.parse_args()
@@ -247,7 +247,7 @@ def main() -> int:
     vars_max = 100
     bias_exp = 2.0
     top_k = 5
-    top_prob = 0
+    top_prob = 0.15
     epochs = 10
     batch_pairs = 256
     margin = 1.0
